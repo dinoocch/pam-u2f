@@ -152,8 +152,14 @@ int pam_sm_authenticate(pam_handle_t * pamh, int flags, int argc,
 
   DBG(("Found user %s", user));
   DBG(("Home directory for %s is %s", user, pw->pw_dir));
+  if (cfg->auth_command) {
+    DBG(("Using authentication command %s", cfg->auth_command));
 
-  if (!cfg->auth_file) {
+    retval =
+      get_devices_from_command(cfg->auth_command, user, cfg->max_devs,
+                                cfg->debug, devices, &n_devices);
+  }
+  else {if (!cfg->auth_file) {
     buf = NULL;
     authfile_dir = getenv(DEFAULT_AUTHFILE_DIR_VAR);
     if (!authfile_dir) {
@@ -201,12 +207,14 @@ int pam_sm_authenticate(pam_handle_t * pamh, int flags, int argc,
 
     free(buf);
     buf = NULL;
-  } else {
+    } else {
     DBG(("Using authentication file %s", cfg->auth_file));
-  }
-  retval =
+    }
+    retval =
       get_devices_from_authfile(cfg->auth_file, user, cfg->max_devs,
-                                cfg->debug, devices, &n_devices);
+                                 cfg->debug, devices, &n_devices);
+  }
+
   if (retval != 1) {
     DBG(("Unable to get devices from file %s", cfg->auth_file));
     retval = PAM_AUTHINFO_UNAVAIL;

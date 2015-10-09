@@ -182,6 +182,146 @@ get_devices_from_authfile(const char *authfile, const char *username,
   return retval;
 }
 
+get_devices_from_command(const char *command, const char *username,
+			  unsigned max_devs, int verbose,
+			  device_t * devices, unsigned *n_devs)
+{
+
+  char *buf;
+  char *s_user, *s_token;
+  int retval = 0;
+  FILE *fp;
+  struct stat st;
+  unsigned i, j;
+
+  char ** cmd = NULL;
+  cmd[0] = strdup ( command);
+  cmd[1] = strdup ( username );
+
+  if (cmd == NULL){
+    if (verbose)
+      D(("Unable to allocate memory"));
+    return retval
+      }
+
+  fp = popen(cmd, "r");
+  if (fp == NULL) {
+    if (verbose)
+      D(("Failed to run command: %s", command));
+    return retval;
+  }
+
+  buf = malloc(sizeof(char) * (DEVSIZE * max_devs));
+  if (!buf) {
+    if (verbose)
+      D(("Unable to allocate memory"));
+    pclose(fp);
+    return retval
+  }
+
+  retval = -2;
+  while (fgets(buf, (int) (DEVSIZE * (max_devs - 1)), fp)) {
+    char *saveptr = NULL;
+    if (buf[strlen(buf) - 1] == '\n')
+      buf[strlen(buf) - 1] = '\0';
+
+    if (verbose)
+      D(("Authorization line: %s", buf));
+
+    s_user = strtok_r(buf, ":", &saveptr);
+    if (s_user && strcmp(username, s_user) == 0) {
+      if (verbose)
+	D(("Matched user: %s", s_user));
+
+      retval = -1;              //We found at least one line for the user
+
+      *n_devs = 0;
+
+      i = 0;
+      while ((s_token = strtok_r(NULL, ",", &saveptr))) {
+
+	if ((*n_devs)++ > MAX_DEVS - 1) {
+	  *n_devs = MAX_DEVS;
+	  if (verbose)
+	    D(("Found more than %d devices, ignoring the remaining ones",
+	       MAX_DEVS));
+	  break;
+	}
+
+	if (verbose)
+	  D(("KeyHandle for device number %d: %s", i + 1, s_token));
+
+	devices[i].keyHandle = strdup(s_token);
+
+	if (!devices[i].keyHandle) {
+	  if (verbose)
+	    D(("Unable to allocate memory for keyHandle number %d", i));
+	  *n_devs = 0;
+	  pclose(fp);
+	  free(buf);
+	  buf = NULL;
+	  return retval;
+	}
+
+	s_token = strtok_r(NULL, ":", &saveptr);
+
+	if (!s_token) {
+	  if (verbose)
+	    D(("Unable to retrieve publicKey number %d", i + 1));
+	  *n_devs = 0;
+	  pclose(fp);
+	  free(buf);
+	  buf = NULL;
+	  return retval;
+	}
+
+	if (verbose)
+	  D(("publicKey for device number %d: %s", i + 1, s_token));
+
+	if (strlen(s_token) % 2 != 0) {
+	  if (verbose)
+	    D(("Length of key number %d not even", i + 1));
+	  *n_devs = 0;
+	  pclose(fp);
+	  free(buf);
+	  buf = NULL;
+	  return retval;
+	}
+
+	devices[i].key_len = strlen(s_token) / 2;
+
+	if (verbose)
+	  D(("Length of key number %d is %d", i + 1, devices[i].key_len));
+
+	devices[i].publicKey =
+	    malloc((sizeof(unsigned char) * devices[i].key_len));
+
+	if (!devices[i].publicKey) {
+	  if (verbose)
+	    D(("Unable to allocate memory for publicKey number %d", i));
+
+	  *n_devs = 0;
+	  pclose(fp);
+	  free(buf);
+	  buf = NULL;
+	  return retval;
+	}
+
+	for (j = 0; j < devices[i].key_len; j++) {
+	  sscanf(&s_token[2 * j], "%2x",
+		 (unsigned int *) &(devices[i].publicKey[j]));
+	}
+
+	i++;
+      }
+    }
+  }
+  pclose(fp);
+
+  retval = 1;
+  return retval;
+}
+
 void free_devices(device_t * devices, const unsigned n_devs)
 {
   unsigned i;

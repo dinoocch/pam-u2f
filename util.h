@@ -56,6 +56,10 @@ typedef struct {
 int get_devices_from_authfile(const char *authfile, const char *username,
                               unsigned max_devs, int verbose,
                               device_t * devices, unsigned *n_devs);
+int get_devices_from_command(const char *command, const char *username
+				 unsigned max_devs, int verbose,
+				 debice_t * devices, unsigned *n_devs);
+
 void free_devices(device_t * devices, const unsigned n_devs);
 
 int do_authentication(const cfg_t * cfg, const device_t * devices,
