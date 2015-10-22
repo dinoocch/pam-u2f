@@ -38,6 +38,8 @@ static void parse_cfg(int flags, int argc, const char **argv, cfg_t * cfg)
       cfg->cue = 1;
     if (strncmp(argv[i], "authfile=", 9) == 0)
       cfg->auth_file = argv[i] + 9;
+    if (strncmp(argv[i], "authcommand=", 12) == 0)
+      cfg->auth_command = argv[i] + 12;
     if (strncmp(argv[i], "origin=", 7) == 0)
       cfg->origin = argv[i] + 7;
     if (strncmp(argv[i], "appid=", 6) == 0)
@@ -57,6 +59,7 @@ static void parse_cfg(int flags, int argc, const char **argv, cfg_t * cfg)
     D(("nouserok=%d", cfg->nouserok));
     D(("alwaysok=%d", cfg->alwaysok));
     D(("authfile=%s", cfg->auth_file ? cfg->auth_file : "(null)"));
+    D(("authcommand=%s", cfg->auth_command ? cfg->auth_command : "(null)"));
     D(("origin=%s", cfg->origin ? cfg->origin : "(null)"));
     D(("appid=%s", cfg->appid ? cfg->appid : "(null)"));
   }
@@ -152,8 +155,14 @@ int pam_sm_authenticate(pam_handle_t * pamh, int flags, int argc,
 
   DBG(("Found user %s", user));
   DBG(("Home directory for %s is %s", user, pw->pw_dir));
+  if (cfg->auth_command) {
+    DBG(("Using authentication command %s", cfg->auth_command));
 
-  if (!cfg->auth_file) {
+    retval =
+      get_devices_from_command(cfg->auth_command, user, cfg->max_devs,
+                                cfg->debug, devices, &n_devices);
+  }
+  else {if (!cfg->auth_file) {
     buf = NULL;
     authfile_dir = getenv(DEFAULT_AUTHFILE_DIR_VAR);
     if (!authfile_dir) {
@@ -201,12 +210,14 @@ int pam_sm_authenticate(pam_handle_t * pamh, int flags, int argc,
 
     free(buf);
     buf = NULL;
-  } else {
+    } else {
     DBG(("Using authentication file %s", cfg->auth_file));
-  }
-  retval =
+    }
+    retval =
       get_devices_from_authfile(cfg->auth_file, user, cfg->max_devs,
-                                cfg->debug, devices, &n_devices);
+                                 cfg->debug, devices, &n_devices);
+  }
+
   if (retval != 1) {
     DBG(("Unable to get devices from file %s", cfg->auth_file));
     retval = PAM_AUTHINFO_UNAVAIL;

@@ -43,6 +43,7 @@ typedef struct {
   int interactive;
   int cue;
   const char *auth_file;
+  const char *auth_command;
   const char *origin;
   const char *appid;
 } cfg_t;
